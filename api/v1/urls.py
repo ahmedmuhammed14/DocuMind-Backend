@@ -26,5 +26,8 @@ urlpatterns = [
     path('admin/users/<uuid:user_id>/delete/', admin.delete_user_view, name='admin_delete_user'),
     path('admin/users/<uuid:user_id>/reset-password/', admin.admin_password_reset_view, name='admin_reset_password'),
 
+    # Social authentication endpoints
+    path('auth/google/', auth.google_auth_view, name='google_auth'),
+
     # Add other API v1 endpoints here as needed
 ]

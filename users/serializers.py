@@ -9,11 +9,12 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
-            'id', 'email', 'first_name', 'last_name', 
-            'date_joined', 'last_login', 'storage_used', 
-            'storage_limit', 'is_premium', 'ai_model_preference'
+            'id', 'email', 'first_name', 'last_name',
+            'date_joined', 'last_login', 'storage_used',
+            'storage_limit', 'is_premium', 'ai_model_preference',
+            'is_social_account'
         )
-        read_only_fields = ('id', 'date_joined', 'last_login', 'storage_used', 'storage_limit')
+        read_only_fields = ('id', 'date_joined', 'last_login', 'storage_used', 'storage_limit', 'is_social_account')
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

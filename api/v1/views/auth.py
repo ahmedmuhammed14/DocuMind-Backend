@@ -370,3 +370,60 @@ def user_profile_view(request):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_auth_view(request):
+    """
+    Authenticate user with Google OAuth
+    """
+    from rest_framework_simplejwt.tokens import RefreshToken
+    from django.contrib.auth import login
+    from api.v1.serializers.auth import GoogleAuthSerializer
+    from users.serializers import UserSerializer
+
+    serializer = GoogleAuthSerializer(data=request.data)
+    if serializer.is_valid():
+        # Get user info from validated data
+        email = serializer.validated_data['email']
+        first_name = serializer.validated_data['first_name']
+        last_name = serializer.validated_data['last_name']
+
+        try:
+            # Try to get existing user
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # Create new user if doesn't exist
+            user = User.objects.create_user(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                password=None,  # Will be set to unusable password
+            )
+            # Set unusable password since user is authenticating via Google
+            user.set_unusable_password()
+            user.email_verified = True  # Google emails are verified
+            user.is_social_account = True  # Mark as social account
+            user.save()
+
+            # Create user profile
+            from users.models import UserProfile
+            UserProfile.objects.create(user=user)
+
+        # Log the user in
+        login(request, user)
+
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            'user': UserSerializer(user).data,
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            },
+            'detail': 'Successfully authenticated with Google.'
+        }, status=status.HTTP_200_OK)
+
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

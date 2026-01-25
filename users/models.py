@@ -72,6 +72,9 @@ class User(AbstractUser):
     is_premium = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
     last_activity = models.DateTimeField(null=True, blank=True)
+
+    # Social authentication
+    is_social_account = models.BooleanField(default=False)
     
     # Set email as the username field
     USERNAME_FIELD = 'email'

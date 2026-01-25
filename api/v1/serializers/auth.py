@@ -4,6 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from django.conf import settings
 from users.models import User
 
 
@@ -264,3 +265,55 @@ class ResendVerificationSerializer(serializers.Serializer):
                 'No account found with this email address.'
             )
         return value
+
+
+class GoogleAuthSerializer(serializers.Serializer):
+    """
+    Serializer for Google authentication
+    """
+    access_token = serializers.CharField()
+
+    def validate_access_token(self, access_token):
+        """
+        Validate the access token with Google
+        """
+        from google.oauth2 import id_token
+        from google.auth.transport.requests import Request
+        import requests
+
+        try:
+            # Verify the token with Google
+            client_id = settings.GOOGLE_OAUTH2_CLIENT_ID
+            idinfo = id_token.verify_oauth2_token(access_token, Request(), client_id)
+
+            # Check if the token is valid
+            if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+                raise serializers.ValidationError('Wrong issuer.')
+
+            # Get user info
+            userid = idinfo['sub']
+            email = idinfo.get('email')
+            first_name = idinfo.get('given_name', '')
+            last_name = idinfo.get('family_name', '')
+            picture = idinfo.get('picture', '')
+
+            if not email:
+                raise serializers.ValidationError('Email is required.')
+
+            # Store user info in validated data
+            self.validated_data = {
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'google_id': userid,
+                'picture': picture
+            }
+
+            return access_token
+
+        except ValueError:
+            # Invalid token
+            raise serializers.ValidationError('Invalid token.')
+        except Exception as e:
+            # Other error
+            raise serializers.ValidationError(f'Error validating token: {str(e)}')
