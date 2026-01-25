@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'chat',          # Chat sessions
     'analytics',     # Dashboard and activity tracking
     'services',      # AI services and background tasks
+    'monitoring',    # Monitoring and logging
 ]
 
 # Custom User model (MUST be set before middleware)
@@ -73,6 +74,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'monitoring.middleware.APILoggerMiddleware',  
+    'monitoring.middleware.UserActivityMiddleware',  
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 

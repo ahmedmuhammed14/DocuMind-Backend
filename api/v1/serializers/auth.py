@@ -2,6 +2,8 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from users.models import User
 
 
@@ -45,12 +47,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         # Remove password_confirm as it's not a model field
         validated_data.pop('password_confirm')
 
-        # Create user using the custom manager
+        # Create user using the custom manager with is_active=False initially
         user = User.objects.create_user(
             email=validated_data['email'],
             password=validated_data['password'],
             first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', '')
+            last_name=validated_data.get('last_name', ''),
+            is_active=False  # User needs to verify email first
         )
 
         return user
@@ -206,3 +209,58 @@ class PasswordChangeSerializer(serializers.Serializer):
             })
 
         return attrs
+
+
+class EmailVerificationSerializer(serializers.Serializer):
+    """
+    Serializer for email verification
+    """
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+    def validate(self, attrs):
+        """
+        Validate the verification token and UID
+        """
+        try:
+            from django.utils.encoding import smart_str
+            from django.utils.http import urlsafe_base64_decode
+
+            uid = smart_str(urlsafe_base64_decode(attrs['uid']))
+            user = User.objects.get(pk=uid)
+
+            # Check if token is valid
+            if not default_token_generator.check_token(user, attrs['token']):
+                raise serializers.ValidationError({
+                    'token': 'Invalid or expired token.'
+                })
+
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError({
+                'uid': 'Invalid user ID.'
+            })
+
+        return attrs
+
+
+class ResendVerificationSerializer(serializers.Serializer):
+    """
+    Serializer for resending verification email
+    """
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        """
+        Validate that the email exists in the system and is not verified
+        """
+        try:
+            user = User.objects.get(email=value)
+            if user.email_verified:
+                raise serializers.ValidationError(
+                    'Email is already verified.'
+                )
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                'No account found with this email address.'
+            )
+        return value
