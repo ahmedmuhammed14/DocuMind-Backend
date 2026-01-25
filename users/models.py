@@ -1,12 +1,50 @@
-# users/models.py
-from django.contrib.auth.models import AbstractUser  # type: ignore
-from django.db import models  
+from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.db import models
+from django.utils.translation import gettext_lazy as _
 import uuid
+
+
+class CustomUserManager(BaseUserManager):
+    """
+    Custom user model manager where email is the unique identifier
+    for authentication instead of usernames.
+    """
+    
+    def create_user(self, email, password=None, **extra_fields):
+        """
+        Create and save a User with the given email and password.
+        """
+        if not email:
+            raise ValueError(_('The Email must be set'))
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+    
+    def create_superuser(self, email, password, **extra_fields):
+        """
+        Create and save a SuperUser with the given email and password.
+        """
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
+        
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError(_('Superuser must have is_staff=True.'))
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError(_('Superuser must have is_superuser=True.'))
+        
+        return self.create_user(email, password, **extra_fields)
+
 
 class User(AbstractUser):
     """
     Custom User model extending Django's AbstractUser
     """
+    # Use custom manager
+    objects = CustomUserManager()
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
     # Remove username field, use email instead
@@ -57,6 +95,7 @@ class User(AbstractUser):
     
     def has_storage_space(self, file_size):
         return self.storage_used + file_size <= self.storage_limit
+
 
 class UserProfile(models.Model):
     """Extended user profile information"""
