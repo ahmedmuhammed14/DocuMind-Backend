@@ -1,11 +1,15 @@
 from rest_framework import serializers
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.conf import settings
 from users.models import User
+
+
+User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -14,49 +18,32 @@ class RegisterSerializer(serializers.ModelSerializer):
     """
     password = serializers.CharField(
         write_only=True,
+        required=True,
         validators=[validate_password],
-        min_length=8,
         style={'input_type': 'password'}
     )
-    password_confirm = serializers.CharField(
+    password2 = serializers.CharField(
         write_only=True,
-        min_length=8,
+        required=True,
         style={'input_type': 'password'}
     )
 
     class Meta:
         model = User
-        fields = (
-            'email', 'first_name', 'last_name',
-            'password', 'password_confirm'
-        )
+        fields = ('email', 'password', 'password2', 'first_name', 'last_name')
+        extra_kwargs = {
+            'first_name': {'required': True},
+            'last_name': {'required': True}
+        }
 
     def validate(self, attrs):
-        """
-        Validate that passwords match
-        """
-        if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({
-                'password_confirm': 'Passwords do not match.'
-            })
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({"password": "Password fields didn't match."})
         return attrs
 
     def create(self, validated_data):
-        """
-        Create user with validated data
-        """
-        # Remove password_confirm as it's not a model field
-        validated_data.pop('password_confirm')
-
-        # Create user using the custom manager with is_active=False initially
-        user = User.objects.create_user(
-            email=validated_data['email'],
-            password=validated_data['password'],
-            first_name=validated_data.get('first_name', ''),
-            last_name=validated_data.get('last_name', ''),
-            is_active=False  # User needs to verify email first
-        )
-
+        validated_data.pop('password2')
+        user = User.objects.create_user(**validated_data)
         return user
 
 
@@ -64,37 +51,29 @@ class LoginSerializer(serializers.Serializer):
     """
     Serializer for user login
     """
-    email = serializers.EmailField()
+    email = serializers.EmailField(required=True)
     password = serializers.CharField(
-        style={'input_type': 'password'},
-        trim_whitespace=False
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'}
     )
 
     def validate(self, attrs):
-        """
-        Validate email and password combination
-        """
         email = attrs.get('email')
         password = attrs.get('password')
 
-        if not email or not password:
-            raise serializers.ValidationError(
-                'Email and password are required.'
-            )
+        if email and password:
+            user = authenticate(email=email, password=password)
+            if user:
+                if not user.is_active:
+                    raise serializers.ValidationError("User account is disabled.")
+                attrs['user'] = user
+                return attrs
+            else:
+                raise serializers.ValidationError("Unable to log in with provided credentials.")
+        else:
+            raise serializers.ValidationError("Must include 'email' and 'password'.")
 
-        user = authenticate(
-            request=self.context.get('request'),
-            email=email,
-            password=password
-        )
-
-        if not user:
-            raise serializers.ValidationError(
-                'Invalid email or password.'
-            )
-
-        attrs['user'] = user
-        return attrs
 
 
 class LogoutSerializer(serializers.Serializer):

@@ -29,5 +29,4 @@ urlpatterns = [
     # Social authentication endpoints
     path('auth/google/', auth.google_auth_view, name='google_auth'),
 
-    # Add other API v1 endpoints here as needed
 ]
