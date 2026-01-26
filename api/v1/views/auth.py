@@ -20,6 +20,7 @@ from api.v1.serializers.auth import (
     PasswordChangeSerializer, EmailVerificationSerializer,
     ResendVerificationSerializer, GoogleAuthSerializer
 )
+from users.models import UserProfile
 from users.serializers import UserSerializer, UserProfileSerializer
 
 User = get_user_model()
@@ -63,7 +64,6 @@ def register_view(request):
         user = serializer.save()
 
         # Create user profile
-        from users.models import UserProfile
         UserProfile.objects.create(user=user)
 
         # Send verification email
@@ -599,7 +599,6 @@ def user_profile_view(request):
         profile = request.user.profile
     except AttributeError:
         # If profile doesn't exist, create one
-        from users.models import UserProfile
         profile = UserProfile.objects.create(user=request.user)
         logger.info(f"Created profile for user: {request.user.email}")
 
@@ -676,7 +675,6 @@ def google_auth_view(request):
             user.save()
 
             # Create user profile
-            from users.models import UserProfile
             UserProfile.objects.create(user=user)
             
             logger.info(f"New user created via Google OAuth: {email}")

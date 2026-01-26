@@ -252,25 +252,38 @@ class GoogleAuthSerializer(serializers.Serializer):
     """
     access_token = serializers.CharField()
 
-    def validate_access_token(self, access_token):
+    def validate(self, attrs):
         """
-        Validate the access token with Google
+        Validate the access token with Google and return user info
         """
-        from google.oauth2 import id_token
-        from google.auth.transport.requests import Request
         import requests
 
-        try:
-            # Verify the token with Google
-            client_id = settings.GOOGLE_OAUTH2_CLIENT_ID
-            idinfo = id_token.verify_oauth2_token(access_token, Request(), client_id)
+        access_token = attrs['access_token']
 
-            # Check if the token is valid
-            if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+        try:
+            # Use Google's tokeninfo endpoint to validate the ID token without requiring google-auth libs
+            resp = requests.get(
+                'https://oauth2.googleapis.com/tokeninfo',
+                params={'id_token': access_token},
+                timeout=5
+            )
+
+            if resp.status_code != 200:
+                raise serializers.ValidationError('Invalid token.')
+
+            idinfo = resp.json()
+
+            # Verify audience (client id)
+            client_id = settings.GOOGLE_OAUTH2_CLIENT_ID
+            if client_id and idinfo.get('aud') != client_id:
+                raise serializers.ValidationError('Invalid audience.')
+
+            # Check issuer
+            if idinfo.get('iss') not in ['accounts.google.com', 'https://accounts.google.com']:
                 raise serializers.ValidationError('Wrong issuer.')
 
             # Get user info
-            userid = idinfo['sub']
+            userid = idinfo.get('sub')
             email = idinfo.get('email')
             first_name = idinfo.get('given_name', '')
             last_name = idinfo.get('family_name', '')
@@ -279,20 +292,17 @@ class GoogleAuthSerializer(serializers.Serializer):
             if not email:
                 raise serializers.ValidationError('Email is required.')
 
-            # Store user info in validated data
-            self.validated_data = {
+            # Return the validated user info
+            return {
                 'email': email,
                 'first_name': first_name,
                 'last_name': last_name,
                 'google_id': userid,
-                'picture': picture
+                'picture': picture,
+                'access_token': access_token
             }
 
-            return access_token
-
-        except ValueError:
-            # Invalid token
-            raise serializers.ValidationError('Invalid token.')
-        except Exception as e:
-            # Other error
+        except requests.RequestException as e:
             raise serializers.ValidationError(f'Error validating token: {str(e)}')
+        except ValueError:
+            raise serializers.ValidationError('Invalid token.')
