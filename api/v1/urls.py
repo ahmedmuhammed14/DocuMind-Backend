@@ -7,6 +7,7 @@ urlpatterns = [
     path('auth/register/', auth.register_view, name='register'),
     path('auth/login/', auth.login_view, name='login'),
     path('auth/logout/', auth.logout_view, name='logout'),
+    path('auth/token/refresh/', auth.token_refresh_view, name='token_refresh'),
     
     # Email verification endpoints
     path('auth/verify-email/', auth.verify_email_view, name='verify_email'),
