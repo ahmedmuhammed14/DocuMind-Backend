@@ -236,23 +236,26 @@ def login_view(request):
 def logout_view(request):
     """
     Logout a user and blacklist the refresh token
-    
+
     Blacklists the refresh token and logs out the user from the current session.
     """
     try:
+        # Get user email before logout since logout makes user anonymous
+        user_email = getattr(request.user, 'email', 'Unknown')
+
         refresh_token = request.data.get('refresh_token')
 
         if refresh_token:
             try:
                 token = RefreshToken(refresh_token)
                 token.blacklist()
-                logger.info(f"Refresh token blacklisted for user: {request.user.email}")
+                logger.info(f"Refresh token blacklisted for user: {user_email}")
             except TokenError as e:
                 logger.warning(f"Token error during logout: {str(e)}")
                 # If the token is invalid or already blacklisted, continue with logout
 
         logout(request)
-        logger.info(f"User logged out: {request.user.email}")
+        logger.info(f"User logged out: {user_email}")
         return Response({'detail': 'Successfully logged out.'}, status=status.HTTP_200_OK)
 
     except Exception as e:
