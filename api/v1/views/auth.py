@@ -607,7 +607,7 @@ def user_profile_view(request):
 
     if request.method == 'GET':
         logger.info(f"Profile retrieved for user: {request.user.email}")
-        serializer = UserProfileSerializer(profile)
+        serializer = UserSerializer(request.user)
         return Response(serializer.data)
 
     elif request.method == 'PUT':
