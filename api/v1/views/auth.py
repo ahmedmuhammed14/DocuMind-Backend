@@ -95,8 +95,9 @@ def send_verification_email(user):
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
 
-    # Create verification link
-    verification_link = f"{settings.FRONTEND_URL}/verify-email/{uid}/{token}/" if hasattr(settings, 'FRONTEND_URL') else f"http://localhost:3000/verify-email/{uid}/{token}/"
+    # Create verification link - Use FRONTEND_URL from settings
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+    verification_link = f"{frontend_url}/verify-email/{uid}/{token}/"
 
     # Prepare email content
     subject = 'Verify Your Email Address - DocuMind'
