@@ -18,6 +18,7 @@ urlpatterns = [
     
     # Password management endpoints
     path('auth/password/reset/', auth.password_reset_view, name='password_reset'),
+    path('auth/password/reset/validate-token/', auth.password_reset_validate_token_view, name='password_reset_validate_token'),
     path('auth/password/reset/confirm/', auth.password_reset_confirm_view, name='password_reset_confirm'),
     path('auth/password/change/', auth.password_change_view, name='password_change'),
     

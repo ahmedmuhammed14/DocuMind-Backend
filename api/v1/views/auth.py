@@ -376,6 +376,68 @@ def password_reset_view(request):
 
 
 @swagger_auto_schema(
+    method='get',
+    manual_parameters=[
+        openapi.Parameter(
+            'uid',
+            openapi.IN_QUERY,
+            description='Encoded user ID',
+            type=openapi.TYPE_STRING,
+            required=True
+        ),
+        openapi.Parameter(
+            'token',
+            openapi.IN_QUERY,
+            description='Password reset token',
+            type=openapi.TYPE_STRING,
+            required=True
+        ),
+    ],
+    responses={
+        200: openapi.Response(
+            description='Token validation result',
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'valid': openapi.Schema(type=openapi.TYPE_BOOLEAN)
+                }
+            )
+        )
+    }
+)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def password_reset_validate_token_view(request):
+    """
+    Validate password reset token
+
+    Validates the password reset token and returns whether it's valid or not.
+    """
+    uid = request.query_params.get('uid')
+    token = request.query_params.get('token')
+
+    if not uid or not token:
+        return Response({'valid': False}, status=status.HTTP_200_OK)
+
+    try:
+        # Decode the UID
+        uid_decoded = force_str(urlsafe_base64_decode(uid))
+
+        # Get the user by decoded UID
+        user = User.objects.get(pk=uid_decoded)
+
+        # Check if token is valid
+        is_valid = default_token_generator.check_token(user, token)
+
+        return Response({'valid': is_valid}, status=status.HTTP_200_OK)
+
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        # If UID is invalid or user doesn't exist, return valid: False
+        # This prevents user enumeration attacks
+        return Response({'valid': False}, status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(
     method='post',
     request_body=PasswordResetConfirmSerializer,
     responses={
