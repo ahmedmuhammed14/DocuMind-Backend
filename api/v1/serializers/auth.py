@@ -6,7 +6,9 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.conf import settings
+from django.template.loader import render_to_string
 from users.models import User
+from dj_rest_auth.serializers import PasswordResetSerializer as DjRestAuthPasswordResetSerializer
 
 
 User = get_user_model()
@@ -306,3 +308,27 @@ class GoogleAuthSerializer(serializers.Serializer):
             raise serializers.ValidationError(f'Error validating token: {str(e)}')
         except ValueError:
             raise serializers.ValidationError('Invalid token.')
+
+
+class CustomPasswordResetSerializer(DjRestAuthPasswordResetSerializer):
+    """
+    Custom password reset serializer that overrides the email options to use frontend URL
+    """
+    def get_email_options(self):
+        # Override to customize email template context
+        return {
+            'subject_template_name': 'account/email/password_reset_key_subject.txt',
+            'email_template_name': 'account/email/password_reset_key_message.txt',
+            'html_email_template_name': 'account/email/password_reset_key_message.html',
+        }
+
+    def get_email_context(self):
+        # Get the default context
+        context = super().get_email_context()
+
+        # Add the frontend reset URL to the context
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+        reset_url = f"{frontend_url}/reset-password?uid={context['uid']}&token={context['key']}"
+        context['frontend_reset_url'] = reset_url
+
+        return context

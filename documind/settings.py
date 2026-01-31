@@ -252,7 +252,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
 ]
 
-FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+
 
 CORS_ALLOW_HEADERS = [
     'authorization',
@@ -283,6 +283,32 @@ SPECTACULAR_SETTINGS = {
 # dj-rest-auth settings
 DJ_REST_AUTH_SERIALIZERS = {
     'USER_DETAILS_SERIALIZER': 'users.serializers.UserSerializer',
+}
+
+# Allauth account settings
+# Updated to use new configuration instead of deprecated settings
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_LOGIN_METHODS = ['email']
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+ACCOUNT_EMAIL_VERIFICATION = 'optional'  # or 'mandatory' if preferred
+
+# Important: keep magic link, disable code-based reset
+ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED = False
+
+# Shorten token lifetime for security (3 minutes)
+ACCOUNT_PASSWORD_RESET_TIMEOUT = 180   # seconds
+
+# Frontend base URL (used in email template)
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+
+# Frontend reset URL pattern
+FRONTEND_RESET_URL = f'{FRONTEND_URL}/reset-password'
+
+REST_AUTH = {
+    'PASSWORD_RESET_SERIALIZER': 'api.v1.serializers.auth.CustomPasswordResetSerializer',
+    'PASSWORD_RESET_CONFIRM_SERIALIZER': 'dj_rest_auth.serializers.PasswordResetConfirmSerializer',
+    'USE_JWT': True,
+    'TOKEN_MODEL': None,
 }
 
 AUTHENTICATION_BACKENDS = [
@@ -424,9 +450,6 @@ LOGGING = {
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)
 
-ACCOUNT_LOGIN_METHODS = ['email']
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
-ACCOUNT_EMAIL_VERIFICATION = 'optional'
 
 # Allauth Social Account Settings
 SOCIALACCOUNT_PROVIDERS = {

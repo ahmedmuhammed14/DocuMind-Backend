@@ -10,6 +10,7 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.core.mail import send_mail
 from django.conf import settings
+from django.db import transaction
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 import logging
@@ -395,31 +396,49 @@ def password_reset_view(request):
 def password_reset_confirm_view(request):
     """
     Confirm password reset with token and set new password
-    
+
     Validates the reset token and sets the new password for the user.
     """
     serializer = PasswordResetConfirmSerializer(data=request.data)
     if serializer.is_valid():
         try:
             uid = force_str(urlsafe_base64_decode(serializer.validated_data['uid']))
-            user = User.objects.get(pk=uid)
+            with transaction.atomic():
+                user = User.objects.select_for_update().get(pk=uid)
 
-            # Check if token is valid
-            if default_token_generator.check_token(user, serializer.validated_data['token']):
-                # Set new password
-                user.set_password(serializer.validated_data['new_password'])
+                # Double-check token validity for security
+                if not default_token_generator.check_token(user, serializer.validated_data['token']):
+                    logger.warning(f"Invalid password reset token for user: {user.email}")
+                    return Response({
+                        'errors': {'token': ['Invalid or expired token.']}
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+                # Set new password - validation is already handled by the serializer
+                new_password = serializer.validated_data['new_password']
+                logger.debug(f"Setting new password for user: {user.email}")
+                user.set_password(new_password)
                 user.save()
-                
-                logger.info(f"Password reset successful for user: {user.email}")
+                logger.debug(f"Password saved for user: {user.email}")
+
+            # Verify the password was actually updated in the database by fetching fresh instance
+            user.refresh_from_db()
+            logger.debug(f"Refreshed user from DB for user: {user.email}")
+
+            # Check if the password was actually updated by using check_password directly
+            is_correct = user.check_password(new_password)
+
+            if not is_correct:
+                logger.error(f"Password reset failed - new password does not match for user: {user.email}")
 
                 return Response({
-                    'detail': 'Password has been reset successfully.'
-                }, status=status.HTTP_200_OK)
-            else:
-                logger.warning(f"Invalid password reset token for user: {user.email}")
-                return Response({
-                    'errors': {'token': ['Invalid or expired token.']}
-                }, status=status.HTTP_400_BAD_REQUEST)
+                    'detail': 'Password reset failed - please try again.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            logger.info(f"Password reset successful for user: {user.email}")
+
+            return Response({
+                'detail': 'Password has been reset successfully.'
+            }, status=status.HTTP_200_OK)
 
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             logger.warning(f"Invalid UID in password reset: {serializer.validated_data.get('uid')}")
